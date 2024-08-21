@@ -4,6 +4,8 @@ import com.amazon.ata.advertising.service.dao.ReadableDao;
 import com.amazon.ata.advertising.service.model.AdvertisementContent;
 import com.amazon.ata.advertising.service.model.EmptyGeneratedAdvertisement;
 import com.amazon.ata.advertising.service.model.GeneratedAdvertisement;
+import com.amazon.ata.advertising.service.model.RequestContext;
+import com.amazon.ata.advertising.service.targeting.TargetingEvaluator;
 import com.amazon.ata.advertising.service.targeting.TargetingGroup;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -12,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.*;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 /**
@@ -63,8 +66,28 @@ public class AdvertisementSelectionLogic {
             final List<AdvertisementContent> contents = contentDao.get(marketplaceId);
 
             if (CollectionUtils.isNotEmpty(contents)) {
+                /* Original Implementation:
                 AdvertisementContent randomAdvertisementContent = contents.get(random.nextInt(contents.size()));
                 generatedAdvertisement = new GeneratedAdvertisement(randomAdvertisementContent);
+
+                 */
+
+
+                RequestContext requestContext = new RequestContext(customerId, marketplaceId);
+                TargetingEvaluator targetingEvaluator = new TargetingEvaluator(requestContext);
+
+                List<AdvertisementContent> eligibleContents = contents.stream()
+                        .filter(content -> {
+                            List<TargetingGroup> targetingGroups = targetingGroupDao.get(content.getContentId());
+                            return targetingGroups.stream()
+                                    .anyMatch(group -> targetingEvaluator.evaluate(group).isTrue());
+                        })
+                        .collect(Collectors.toList());
+
+                if (CollectionUtils.isNotEmpty(eligibleContents)) {
+                    AdvertisementContent randomAdvertisementContent = eligibleContents.get(random.nextInt(eligibleContents.size()));
+                    generatedAdvertisement = new GeneratedAdvertisement(randomAdvertisementContent);
+                }
             }
 
         }
