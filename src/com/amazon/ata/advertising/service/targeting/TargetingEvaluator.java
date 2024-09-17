@@ -4,14 +4,19 @@ import com.amazon.ata.advertising.service.model.RequestContext;
 import com.amazon.ata.advertising.service.targeting.predicate.TargetingPredicate;
 import com.amazon.ata.advertising.service.targeting.predicate.TargetingPredicateResult;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * Evaluates TargetingPredicates for a given RequestContext.
  */
 public class TargetingEvaluator {
     public static final boolean IMPLEMENTED_STREAMS = true;
-    public static final boolean IMPLEMENTED_CONCURRENCY = false;
+    public static final boolean IMPLEMENTED_CONCURRENCY = true;
     private final RequestContext requestContext;
 
     /**
@@ -42,11 +47,42 @@ public class TargetingEvaluator {
         }
          */
 
+        /* Mastery Task 1 implementation
+
         boolean allTruePredicates = targetingPredicates.stream()
                 .map(predicate -> predicate.evaluate(requestContext))
                 .allMatch(TargetingPredicateResult::isTrue);
 
-        return allTruePredicates ? TargetingPredicateResult.TRUE :
-                                   TargetingPredicateResult.FALSE;
+         */
+
+        // Mastery Task 2 Implementation
+        // Create ExecutorService
+        ExecutorService executorService = Executors.newCachedThreadPool();
+        List<Future<TargetingPredicateResult>> futures = new ArrayList<>();
+
+        try {
+            for (com.amazon.ata.advertising.service.targeting.predicate.TargetingPredicate predicate : targetingPredicates) {
+                Future<TargetingPredicateResult> future = executorService.submit(() -> predicate.evaluate(requestContext));
+                futures.add(future);
+            }
+
+            // Process Results
+            for (Future<TargetingPredicateResult> future : futures) {
+                try {
+                    TargetingPredicateResult result = future.get();
+                    if (!result.isTrue()) {
+                        return TargetingPredicateResult.FALSE;
+                    }
+                } catch (InterruptedException | ExecutionException e) {
+                    e.printStackTrace();
+                    return TargetingPredicateResult.FALSE;
+                }
+            }
+        } finally {
+            executorService.shutdown();
+        }
+
+
+        return TargetingPredicateResult.TRUE;
     }
 }
