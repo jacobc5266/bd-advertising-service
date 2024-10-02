@@ -74,24 +74,29 @@ public class AdvertisementSelectionLogicTest {
         assertTrue(ad instanceof EmptyGeneratedAdvertisement);
     }
 
-
     @Test
-    public void selectAdvertisement_oneAd_returnsAd() {
-        List<AdvertisementContent> contents = Arrays.asList(CONTENT1);
-        when(contentDao.get(MARKETPLACE_ID)).thenReturn(contents);
-        when(random.nextInt(contents.size())).thenReturn(0);
-        GeneratedAdvertisement ad = adSelectionService.selectAdvertisement(CUSTOMER_ID, MARKETPLACE_ID);
-
-        assertEquals(CONTENT_ID1, ad.getContent().getContentId());
-    }
-
-    @Test
-    public void selectAdvertisement_multipleAds_returnsOneRandom() {
+    public void selectAdvertisement_multipleAdsWithDifferentCTR_returnsHighestCTRAd() {
         List<AdvertisementContent> contents = Arrays.asList(CONTENT1, CONTENT2, CONTENT3);
+
+        // Mock the CTR values for each ad's targeting groups, passing an empty list of predicates
+        List<TargetingGroup> targetingGroupsContent1 = Arrays.asList(
+                new TargetingGroup("tg1", CONTENT_ID1, 0.15, Collections.emptyList())
+        );
+        List<TargetingGroup> targetingGroupsContent2 = Arrays.asList(
+                new TargetingGroup("tg2", CONTENT_ID2, 0.30, Collections.emptyList())
+        );
+        List<TargetingGroup> targetingGroupsContent3 = Arrays.asList(
+                new TargetingGroup("tg3", CONTENT_ID3, 0.25, Collections.emptyList())
+        );
+
         when(contentDao.get(MARKETPLACE_ID)).thenReturn(contents);
-        when(random.nextInt(contents.size())).thenReturn(1);
+        when(targetingGroupDao.get(CONTENT_ID1)).thenReturn(targetingGroupsContent1);
+        when(targetingGroupDao.get(CONTENT_ID2)).thenReturn(targetingGroupsContent2);
+        when(targetingGroupDao.get(CONTENT_ID3)).thenReturn(targetingGroupsContent3);
+
         GeneratedAdvertisement ad = adSelectionService.selectAdvertisement(CUSTOMER_ID, MARKETPLACE_ID);
 
+        // The ad with CONTENT_ID2 should be selected since it has the highest CTR (0.30)
         assertEquals(CONTENT_ID2, ad.getContent().getContentId());
     }
 
