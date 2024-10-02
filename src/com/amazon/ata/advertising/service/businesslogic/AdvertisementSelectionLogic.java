@@ -66,27 +66,23 @@ public class AdvertisementSelectionLogic {
             final List<AdvertisementContent> contents = contentDao.get(marketplaceId);
 
             if (CollectionUtils.isNotEmpty(contents)) {
-                /* Original Implementation:
-                AdvertisementContent randomAdvertisementContent = contents.get(random.nextInt(contents.size()));
-                generatedAdvertisement = new GeneratedAdvertisement(randomAdvertisementContent);
-
-                 */
-
-
                 RequestContext requestContext = new RequestContext(customerId, marketplaceId);
                 TargetingEvaluator targetingEvaluator = new TargetingEvaluator(requestContext);
+                TreeMap<Double, AdvertisementContent> eligibleContentMap = new TreeMap<>(Comparator.reverseOrder());
 
-                List<AdvertisementContent> eligibleContents = contents.stream()
-                        .filter(content -> {
-                            List<TargetingGroup> targetingGroups = targetingGroupDao.get(content.getContentId());
-                            return targetingGroups.stream()
-                                    .anyMatch(group -> targetingEvaluator.evaluate(group).isTrue());
-                        })
-                        .collect(Collectors.toList());
+                for (AdvertisementContent content : contents) {
+                    List<TargetingGroup> targetingGroups = targetingGroupDao.get(content.getContentId());
 
-                if (CollectionUtils.isNotEmpty(eligibleContents)) {
-                    AdvertisementContent randomAdvertisementContent = eligibleContents.get(random.nextInt(eligibleContents.size()));
-                    generatedAdvertisement = new GeneratedAdvertisement(randomAdvertisementContent);
+                    // Find the highest CTR for eligible targeting groups for this content
+                    targetingGroups.stream()
+                            .filter(group -> targetingEvaluator.evaluate(group).isTrue())
+                            .max(Comparator.comparingDouble(TargetingGroup::getClickThroughRate))
+                            .ifPresent(group -> eligibleContentMap.put(group.getClickThroughRate(), content));
+                }
+
+                if (!eligibleContentMap.isEmpty()) {
+                    AdvertisementContent highestCTRContent = eligibleContentMap.firstEntry().getValue();
+                    generatedAdvertisement = new GeneratedAdvertisement(highestCTRContent);
                 }
             }
 
